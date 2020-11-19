@@ -84,25 +84,6 @@ type ChiServerOptions struct {
     Middlewares []middlewareFunc
 }
 
-// HandlerWithOptions creates http.Handler with additional options
-func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
-    r := options.BaseRouter
-
-    if r == nil {
-        r = chi.NewRouter()
-    }
-    {{if .}}wrapper := ServerInterfaceWrapper{
-        Handler: si,
-        HandlerMiddlewares: options.Middlewares,
-    }
-    {{end}}
-    {{range .}}r.Group(func(r chi.Router) {
-        r.{{.Method | lower | title }}(options.BaseURL+"{{.Path | swaggerUriToChiUri}}", wrapper.{{.OperationId}})
-    })
-    {{end}}
-    return r
-}
-
 // HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
 func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
     return HandlerWithOptions(si, ChiServerOptions {
@@ -117,6 +98,24 @@ func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string)
     })
 }
 
+// HandlerWithOptions creates http.Handler with additional options
+func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
+r := options.BaseRouter
+
+if r == nil {
+r = chi.NewRouter()
+}
+{{if .}}wrapper := ServerInterfaceWrapper{
+Handler: si,
+HandlerMiddlewares: options.Middlewares,
+}
+{{end}}
+{{range .}}r.Group(func(r chi.Router) {
+r.{{.Method | lower | title }}(options.BaseURL+"{{.Path | swaggerUriToChiUri}}", wrapper.{{.OperationId}})
+})
+{{end}}
+return r
+}
 `,
 	"chi-interface.tmpl": `// ServerInterface represents all server handlers.
 type ServerInterface interface {
