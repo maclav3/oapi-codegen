@@ -78,22 +78,43 @@ func Handler(si ServerInterface) http.Handler {
   return HandlerFromMux(si, chi.NewRouter())
 }
 
+type ChiServerOptions struct {
+    BaseURL string
+    BaseRouter chi.Router
+    Middlewares []middlewareFunc
+}
+
+// HandlerWithOptions creates http.Handler with additional options
+func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
+    router := options.BaseRouter
+
+    if router == nil {
+        router := chi.NewRouter()
+    }
+    {{if .}}wrapper := ServerInterfaceWrapper{
+        Handler: si,
+        HandlerMiddlewares: options.Middlewares,
+    }
+    {{end}}
+    {{range .}}r.Group(func(r chi.Router) {
+        r.{{.Method | lower | title }}(options.BaseURL+"{{.Path | swaggerUriToChiUri}}", wrapper.{{.OperationId}})
+    })
+    {{end}}
+    return r
+}
+
 // HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
 func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
     return HandlerFromMuxWithBaseURL(si, r, "")
 }
 
 func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string) http.Handler {
-{{if .}}wrapper := ServerInterfaceWrapper{
-        Handler: si,
-    }
-{{end}}
-{{range .}}r.Group(func(r chi.Router) {
-  r.{{.Method | lower | title }}(baseURL+"{{.Path | swaggerUriToChiUri}}", wrapper.{{.OperationId}})
-})
-{{end}}
-  return r
+    return HandlerWithOptions(si, ChiServerOptions {
+        BaseURL: baseURL,
+        BaseRouter: r,
+    })
 }
+
 `,
 	"chi-interface.tmpl": `// ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -106,7 +127,10 @@ type ServerInterface interface {
 	"chi-middleware.tmpl": `// ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
     Handler ServerInterface
+    HandlerMiddlewares []middlewareFunc
 }
+
+type middlewareFunc func(http.HandlerFunc) http.HandlerFunc
 
 {{range .}}{{$opid := .OperationId}}
 
@@ -264,7 +288,16 @@ func (siw *ServerInterfaceWrapper) {{$opid}}(w http.ResponseWriter, r *http.Requ
       {{- end}}
     {{end}}
   {{end}}
-  siw.Handler.{{.OperationId}}(w, r.WithContext(ctx){{genParamNames .PathParams}}{{if .RequiresParamObject}}, params{{end}})
+
+  var handler = func(w http.ResponseWriter, r *http.Request) {
+    siw.Handler.{{.OperationId}}(w, r{{genParamNames .PathParams}}{{if .RequiresParamObject}}, params{{end}})
+}
+
+  for _, middleware := range siw.HandlerMiddlewares {
+    handler = middleware(handler)
+  }
+
+  handler(w, r.WithContext(ctx))
 }
 {{end}}
 
