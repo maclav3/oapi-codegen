@@ -30,7 +30,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 
 // HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
 func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
-    return HandlerFromMuxWithBaseURL(si, ChiServerOptions {
+    return HandlerWithOptions(si, ChiServerOptions {
         BaseRouter: r,
     })
 }
