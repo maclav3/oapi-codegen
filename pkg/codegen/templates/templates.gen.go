@@ -75,7 +75,7 @@ func (a {{.TypeName}}) MarshalJSON() ([]byte, error) {
 `,
 	"chi-handler.tmpl": `// Handler creates http.Handler with routing matching OpenAPI spec.
 func Handler(si ServerInterface) http.Handler {
-  return HandlerFromMux(si, chi.NewRouter())
+  return HandlerWithOptions(si, ChiServerOptions{})
 }
 
 type ChiServerOptions struct {
@@ -86,10 +86,10 @@ type ChiServerOptions struct {
 
 // HandlerWithOptions creates http.Handler with additional options
 func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
-    router := options.BaseRouter
+    r := options.BaseRouter
 
-    if router == nil {
-        router := chi.NewRouter()
+    if r == nil {
+        r = chi.NewRouter()
     }
     {{if .}}wrapper := ServerInterfaceWrapper{
         Handler: si,
@@ -105,7 +105,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 
 // HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
 func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
-    return HandlerFromMuxWithBaseURL(si, r, "")
+    return HandlerFromMuxWithBaseURL(si, ChiServerOptions {
+        BaseRouter: r,
+    })
 }
 
 func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string) http.Handler {
